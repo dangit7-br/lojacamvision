@@ -28,53 +28,16 @@ const MAX_BODY = 64 * 1024;
 const MAX_EVENTS = Number(process.env.MAX_EVENTS || 50000);
 
 const PRODUCT_CATALOG = {
-  "kit-pote": {
-    slug: "kit-pote",
-    id: "kit-pote-cozinha",
-    name: "Kit pote cozinha",
-    gatewayName: "Kit pote cozinha",
+  camvision: {
+    slug: "camvision",
+    id: "camera-externa-ptz-wifi-lente-dupla",
+    name: "Câmera Externa PTZ WiFi Lente Dupla 2MP+2MP",
+    gatewayName: "Camera Externa PTZ WiFi Lente Dupla",
     variants: {
-      Kit12: { label: "Kit 12", price: 89.9 },
-      Kit24: { label: "Kit 24", price: 129.9 },
+      Kit2: { label: "Compre 1, leve 2", price: 89.9 },
+      Kit4: { label: "Compre 2, leve 4", price: 139.9 },
     },
-    defaultVariant: "Kit12",
-  },
-  "kit-jogo-de-cama": {
-    slug: "kit-jogo-de-cama",
-    id: "kit-jogo-de-cama-400-fios",
-    name: "Kit 5 Jogos de Cama 400 Fios",
-    gatewayName: "kit jogo de cama",
-    variants: {
-      Solteiro: { label: "Solteiro", price: 89.9 },
-      Casal: { label: "Casal", price: 99.9 },
-      Queen: { label: "Queen", price: 109.9 },
-      King: { label: "King", price: 119.9 },
-    },
-    defaultVariant: "Casal",
-  },
-  "escova-limpeza": {
-    slug: "escova-limpeza",
-    id: "escova-limpeza-eletrica-9-em-1",
-    gatewayName: "Escova de limpeza",
-    name: "Escova de Limpeza Elétrica 9 em 1",
-    variants: {
-      Qty1: { label: "1 unidade", price: 89.9 },
-      Qty2: { label: "2 unidades", price: 129.9 },
-    },
-    defaultVariant: "Qty1",
-  },
-  "colchao-inflavel": {
-    slug: "colchao-inflavel",
-    id: "colchao-inflavel-joyfox",
-    gatewayName: "Colchao Inflável",
-    name: "Colchão Inflável Joyfox",
-    variants: {
-      Solteiro: { label: "Solteiro", price: 89.9 },
-      Casal: { label: "Casal", price: 119.9 },
-      Queen: { label: "Queen", price: 139.9 },
-      King: { label: "King", price: 149.9 },
-    },
-    defaultVariant: "Solteiro",
+    defaultVariant: "Kit2",
   },
 };
 
@@ -325,13 +288,9 @@ function gatewayConfigured(gateway) {
 }
 
 function resolveProduct(order = {}) {
-  const slug = PRODUCT_CATALOG[order.productSlug] ? order.productSlug : "kit-pote";
+  const slug = PRODUCT_CATALOG[order.productSlug] ? order.productSlug : "camvision";
   const product = PRODUCT_CATALOG[slug];
-  const requestedVariant = slug === "escova-limpeza"
-    ? (product.variants[sanitizeText(order.variant || order.selectedKit || order.size, 40)]
-      ? sanitizeText(order.variant || order.selectedKit || order.size, 40)
-      : `Qty${String(order.qty || "").trim() === "2" ? "2" : "1"}`)
-    : sanitizeText(order.variant || order.selectedKit || order.size, 40);
+  const requestedVariant = sanitizeText(order.variant || order.selectedKit || order.size, 40);
   const variantKey = product.variants[requestedVariant] ? requestedVariant : product.defaultVariant;
   const variant = product.variants[variantKey];
   const shippingPrice = order.shipping && typeof order.shipping.price === "number" ? order.shipping.price : 0;
@@ -1213,7 +1172,7 @@ function handleAdminLogout(req, res) {
 function handleIntegrationStatus(req, res) {
   json(res, 200, {
     ok: true,
-    server: "Casa Organizy Node",
+    server: "CamVision Node",
     time: new Date().toISOString(),
     data: {
       dir: dataDir,
@@ -1369,10 +1328,10 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/admin/stream" && req.method === "GET") return handleStream(req, res);
   if (url.pathname === "/admin") return serveFile(req, res, path.join(root, "admin.html"));
   if (url.pathname === "/checkout") return serveFile(req, res, path.join(root, "checkout.html"));
-  if (url.pathname === "/produto" || url.pathname === "/produto/" || url.pathname === "/kit-pote" || url.pathname === "/kit-pote/") return serveFile(req, res, path.join(root, "produto.html"));
-  if (url.pathname === "/kit-jogo-de-cama" || url.pathname === "/kit-jogo-de-cama/") return serveFile(req, res, path.join(root, "kit-jogo-de-cama.html"));
-  if (url.pathname === "/escova-limpeza" || url.pathname === "/escova-limpeza/") return serveFile(req, res, path.join(root, "escova-limpeza.html"));
-  if (url.pathname === "/colchao-inflavel" || url.pathname === "/colchao-inflavel/") return serveFile(req, res, path.join(root, "colchao-inflavel.html"));
+  if (["/produto", "/produto/", "/kit-pote", "/kit-pote/", "/kit-jogo-de-cama", "/kit-jogo-de-cama/", "/escova-limpeza", "/escova-limpeza/", "/colchao-inflavel", "/colchao-inflavel/"].includes(url.pathname)) {
+    res.writeHead(302, { location: "/" });
+    return res.end();
+  }
   if (url.pathname === "/pedido" || url.pathname.startsWith("/pedido/")) return serveFile(req, res, path.join(root, "pedido.html"));
 
   return serveFile(req, res, safeStaticPath(url.pathname));
@@ -1396,7 +1355,7 @@ async function start() {
   loadStore();
   await initDatabase();
   server.listen(port, "0.0.0.0", () => {
-    console.log(`Casa Organizy server listening on ${port}`);
+    console.log(`CamVision server listening on ${port}`);
     console.log(`[store] file=${dataFile}`);
     console.log(`[postgres] ${databaseUrl ? (databaseReady ? "connected" : "configured but not connected") : "not configured"}`);
   });

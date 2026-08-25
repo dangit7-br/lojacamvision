@@ -2,7 +2,7 @@
   var KEY='casa_checkout_progress';
   var MAX_AGE=1000*60*60*24*14;
   function fallback(){
-    return '/#produtos';
+    return '/checkout?product=camvision&size=Kit2';
   }
   function smartCartUrl(){
     try{
