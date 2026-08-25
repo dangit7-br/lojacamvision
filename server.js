@@ -69,6 +69,7 @@ let store = {
 };
 
 const clients = new Set();
+const pixCreationInFlight = new Map();
 let pgPool = null;
 let databaseReady = false;
 
@@ -946,13 +947,39 @@ async function handleTrack(req, res) {
 }
 
 async function handleCreatePix(req, res) {
+  let lock;
+  let orderId;
   try {
     const body = await readBody(req);
-    const orderId = sanitizeText(body.orderId || body.id, 120) || crypto.randomUUID();
+    orderId = sanitizeText(body.orderId || body.id, 120) || crypto.randomUUID();
     const existingOrder = store.orders && store.orders[orderId];
     if (existingOrder && existingOrder.pix && existingOrder.pix.copyPaste) {
       return json(res, 200, { ok: true, orderId: existingOrder.orderId || existingOrder.id || orderId, order: existingOrder, pix: existingOrder.pix, reused: true });
     }
+
+    const pendingCreation = pixCreationInFlight.get(orderId);
+    if (pendingCreation) {
+      await pendingCreation;
+      const completedOrder = store.orders && store.orders[orderId];
+      if (completedOrder && completedOrder.pix && completedOrder.pix.copyPaste) {
+        return json(res, 200, {
+          ok: true,
+          orderId: completedOrder.orderId || completedOrder.id || orderId,
+          order: completedOrder,
+          pix: completedOrder.pix,
+          reused: true,
+        });
+      }
+      throw new Error("A geração anterior do Pix não foi concluída. Tente novamente.");
+    }
+
+    let releaseLock;
+    const completion = new Promise((resolve) => {
+      releaseLock = resolve;
+    });
+    lock = { completion, release: releaseLock };
+    pixCreationInFlight.set(orderId, completion);
+
     const resolved = resolveProduct(body);
     const order = {
       ...body,
@@ -1045,6 +1072,11 @@ async function handleCreatePix(req, res) {
     json(res, 200, { ok: true, orderId: finalOrderId, order: savedOrder, pix: savedOrder.pix });
   } catch (error) {
     json(res, 502, { ok: false, error: error.message || "Falha ao gerar Pix" });
+  } finally {
+    if (lock) {
+      lock.release();
+      if (pixCreationInFlight.get(orderId) === lock.completion) pixCreationInFlight.delete(orderId);
+    }
   }
 }
 

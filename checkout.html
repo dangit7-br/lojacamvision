@@ -94,7 +94,7 @@
   <header class="top">
     <div class="top-inner">
       <a class="brand" href="/" aria-label="Mercado Pago">
-        <img src="/checkout-assets/mercado-pago-logo.png" alt="Mercado Pago">
+        <img src="/checkout-assets/mercado-pago-logo-optimized.png" alt="Mercado Pago" width="600" height="155" decoding="async">
       </a>
       <div class="safe-top" aria-label="Compra segura">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Zm-1 14-4-4 1.4-1.4L11 13.2l4.6-4.6L17 10l-6 6Z"></path></svg>
@@ -782,6 +782,7 @@
           createdAt:new Date().toISOString()
         };
         document.getElementById('finish').disabled=true;
+        document.getElementById('finish').setAttribute('aria-busy','true');
         document.getElementById('finish').textContent='Gerando Pix...';
         try{
           var result=await createPixOrder(order);
@@ -794,6 +795,7 @@
         }catch(error){
           pixSubmitLocked=false;
           document.getElementById('finish').disabled=false;
+          document.getElementById('finish').removeAttribute('aria-busy');
           document.getElementById('finish').textContent='Finalizar Compra';
           alert((error&&error.message?error.message:'Não foi possível gerar o Pix.')+' Verifique o deploy do backend no EasyPanel e tente novamente.');
         }
