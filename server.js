@@ -22,6 +22,7 @@ const utmifyApiToken = process.env.UTMIFY_API_TOKEN || "";
 const onyxApiUrl = process.env.ONYXPAG_API_URL || "https://api.onyxpag.com";
 const blackcatApiUrl = process.env.BLACKCAT_API_URL || "https://api.blackcatoficial.com/api";
 const utmifyApiUrl = process.env.UTMIFY_API_URL || "https://api.utmify.com.br/api-credentials/orders";
+const appTimezone = process.env.APP_TIMEZONE || "America/Sao_Paulo";
 const defaultGateway = ["onyxpag", "blackcat"].includes(process.env.PAYMENT_GATEWAY) ? process.env.PAYMENT_GATEWAY : "onyxpag";
 
 const MAX_BODY = 64 * 1024;
@@ -32,7 +33,7 @@ const PRODUCT_CATALOG = {
     slug: "camvision",
     id: "camera-externa-ptz-wifi-lente-dupla",
     name: "Câmera Externa PTZ WiFi Lente Dupla 2MP+2MP",
-    gatewayName: "Camera Externa PTZ WiFi Lente Dupla",
+    gatewayName: "Kit camera",
     variants: {
       Kit2: { label: "Compre 1, leve 2", price: 89.9 },
       Kit4: { label: "Compre 2, leve 4", price: 139.9 },
@@ -309,10 +310,20 @@ function resolveProduct(order = {}) {
   };
 }
 
-function utmifyUtcDateTime(value = new Date()) {
+function utmifyDateTime(value = new Date()) {
   const date = new Date(value);
   const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
-  return safeDate.toISOString().slice(0, 19).replace("T", " ");
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: appTimezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(safeDate).reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
 function publicBaseUrl(req) {
@@ -574,11 +585,11 @@ function buildUtmifyPayload(order, status, paidAt) {
   const customer = order.customer || {};
   return {
     orderId: String(order.orderId || order.id),
-    platform: "CasaOrganizy",
+    platform: "CamVision",
     paymentMethod: "pix",
     status,
-    createdAt: utmifyUtcDateTime(order.createdAt || new Date()),
-    approvedDate: status === "paid" ? utmifyUtcDateTime(paidAt || new Date()) : null,
+    createdAt: utmifyDateTime(order.createdAt || new Date()),
+    approvedDate: status === "paid" ? utmifyDateTime(paidAt || new Date()) : null,
     refundedAt: null,
     customer: {
       name: customer.name || "Cliente",
@@ -803,7 +814,7 @@ async function createBlackcatPix(order, req) {
       product_slug: resolved.slug,
       variant: resolved.variant,
       split_code: blackcatSplitCode || undefined,
-      source: "CasaOrganizy",
+      source: "CamVision",
     }),
     utm_source: tracking.utm_source || undefined,
     utm_medium: tracking.utm_medium || undefined,
@@ -833,6 +844,32 @@ async function createGatewayPix(order, req) {
   const gateway = getPaymentGateway();
   const pix = gateway === "blackcat" ? await createBlackcatPix(order, req) : await createOnyxPix(order, req);
   return { ...pix, gateway };
+}
+
+async function fetchGatewayPaymentStatus(order) {
+  const gateway = order.paymentGateway || "onyxpag";
+  const transactionId = order.gatewayTransactionId || order.orderId;
+  if (!transactionId || !gatewayConfigured(gateway)) return null;
+  let response;
+  if (gateway === "blackcat") {
+    response = await fetch(`${blackcatApiUrl.replace(/\/+$/, "")}/sales/${encodeURIComponent(transactionId)}/status`, {
+      headers: { "X-API-Key": blackcatApiKey },
+    });
+  } else {
+    response = await fetch(`${onyxApiUrl.replace(/\/+$/, "")}/transactions/${encodeURIComponent(transactionId)}`, {
+      headers: { Authorization: onyxAuthHeader(), "content-type": "application/json" },
+    });
+  }
+  const text = await response.text();
+  let parsed = {};
+  try {
+    parsed = text ? JSON.parse(text) : {};
+  } catch {
+    parsed = {};
+  }
+  if (!response.ok || parsed.success === false) throw new Error(`${gatewayLabel(gateway)} status ${response.status}`);
+  const data = parsed.data || parsed;
+  return String(data.status || parsed.status || "").toLowerCase();
 }
 
 function authOk(req) {
@@ -1011,10 +1048,51 @@ async function handleCreatePix(req, res) {
   }
 }
 
-function handleOrderState(req, res, url) {
+async function handleOrderState(req, res, url) {
   const orderId = decodeURIComponent(url.pathname.split("/").pop() || "");
   const order = store.orders && store.orders[orderId];
   if (!order) return json(res, 404, { ok: false, error: "Pedido não encontrado" });
+  const now = Date.now();
+  const lastCheck = Number(order.lastGatewayCheckAt || 0);
+  if (order.status !== "paid" && now - lastCheck >= 10000) {
+    order.lastGatewayCheckAt = now;
+    try {
+      const gatewayStatus = await fetchGatewayPaymentStatus(order);
+      const paid = ["paid", "pago", "approved", "aprovado"].includes(gatewayStatus);
+      if (gatewayStatus) order.paymentStatus = gatewayStatus;
+      if (paid && order.status !== "paid") {
+        order.status = "paid";
+        order.paidAt = new Date().toISOString();
+        const event = {
+          id: crypto.randomUUID(),
+          sessionId: order.sessionId,
+          orderId: order.orderId,
+          type: "checkout",
+          stage: "payment_paid",
+          page: "gateway_status",
+          product: order.product || resolveProduct(order).name,
+          productSlug: order.productSlug || resolveProduct(order).slug,
+          value: order.total || order.value,
+          status: "paid",
+          paymentStatus: gatewayStatus,
+          paymentMethod: "pix",
+          paymentGateway: order.paymentGateway,
+          customer: order.customer,
+          createdAt: order.paidAt,
+        };
+        store.events.push(event);
+        if (store.events.length > MAX_EVENTS) store.events = store.events.slice(-MAX_EVENTS);
+        await saveStoreNowAsync();
+        syncUtmifyOrder(order, "paid", order.paidAt).catch((error) => console.error("[utmify] paid:", error.message));
+        broadcast({ type: "update", event, summary: summarize().totals });
+      } else {
+        scheduleSave();
+      }
+    } catch (error) {
+      order.lastGatewayStatusError = error.message;
+      scheduleSave();
+    }
+  }
   json(res, 200, { ok: true, order });
 }
 
@@ -1203,6 +1281,7 @@ function handleIntegrationStatus(req, res) {
       configured: Boolean(utmifyApiToken),
       endpoint: utmifyApiUrl,
     },
+    timezone: appTimezone,
   });
 }
 
