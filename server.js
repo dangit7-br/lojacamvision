@@ -1134,6 +1134,7 @@ async function handleAdminGateway(req, res) {
   const body = await readBody(req);
   const gateway = sanitizeText(body.gateway, 40);
   if (!["onyxpag", "blackcat"].includes(gateway)) return json(res, 400, { ok: false, error: "Gateway inválido" });
+  if (!gatewayConfigured(gateway)) return json(res, 400, { ok: false, error: `${gatewayLabel(gateway)} ainda não está configurado no EasyPanel` });
   getSettings().paymentGateway = gateway;
   scheduleSave();
   const event = {
