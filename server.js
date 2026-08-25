@@ -1281,24 +1281,35 @@ function serveFile(req, res, filePath) {
     const type = mime[ext] || "application/octet-stream";
     const compressible = [".html", ".css", ".js", ".json", ".svg", ".txt"].includes(ext);
     const acceptEncoding = String(req.headers["accept-encoding"] || "");
+    const etag = `W/"${stat.size.toString(16)}-${Math.trunc(stat.mtimeMs).toString(16)}"`;
     const headers = {
       "content-type": type,
       "cache-control": ext === ".html" ? "no-cache" : "public, max-age=31536000, immutable",
+      etag,
+      "last-modified": stat.mtime.toUTCString(),
       vary: compressible ? "Accept-Encoding" : undefined,
     };
     Object.keys(headers).forEach((key) => headers[key] === undefined && delete headers[key]);
+    if (req.headers["if-none-match"] === etag) {
+      res.writeHead(304, headers);
+      return res.end();
+    }
+    if (req.method === "HEAD") {
+      res.writeHead(200, { ...headers, "content-length": stat.size });
+      return res.end();
+    }
     if (compressible && stat.size > 1024 && /\bbr\b/.test(acceptEncoding)) {
       res.writeHead(200, { ...headers, "content-encoding": "br" });
-      return fs.createReadStream(resolved).pipe(zlib.createBrotliCompress()).pipe(res);
+      const brotli = zlib.createBrotliCompress({
+        params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 },
+      });
+      return fs.createReadStream(resolved).pipe(brotli).pipe(res);
     }
     if (compressible && stat.size > 1024 && /\bgzip\b/.test(acceptEncoding)) {
       res.writeHead(200, { ...headers, "content-encoding": "gzip" });
-      return fs.createReadStream(resolved).pipe(zlib.createGzip()).pipe(res);
+      return fs.createReadStream(resolved).pipe(zlib.createGzip({ level: 6 })).pipe(res);
     }
-    res.writeHead(200, {
-      "content-type": type,
-      "cache-control": ext === ".html" ? "no-cache" : "public, max-age=31536000, immutable",
-    });
+    res.writeHead(200, { ...headers, "content-length": stat.size });
     fs.createReadStream(resolved).pipe(res);
   });
 }
