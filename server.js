@@ -740,16 +740,8 @@ async function createOnyxPix(order, req) {
       document: customer.document,
       phone: customer.phone,
     },
-    metadata: {
-      order_id: order.orderId,
-      product_id: resolved.id,
-      product_slug: resolved.slug,
-      variant: resolved.variant,
-    },
     postbackUrl: `${baseUrl}/api/webhooks/onyxpag`,
-    tracking: cleanTracking(order.tracking || order),
     source_url: order.href || `${baseUrl}/checkout`,
-    source_label: `${resolved.gatewayName} - ${resolved.variantLabel}`,
   };
   const response = await fetch(onyxApiUrl, {
     method: "POST",
@@ -774,7 +766,6 @@ async function createBlackcatPix(order, req) {
   const customer = order.customer || {};
   const baseUrl = publicBaseUrl(req);
   const resolved = resolveProduct(order);
-  const tracking = cleanTracking(order.tracking || order);
   const payload = {
     amount: cents(resolved.total),
     currency: "BRL",
@@ -809,19 +800,6 @@ async function createBlackcatPix(order, req) {
     pix: { expiresInDays: 1 },
     postbackUrl: `${baseUrl}/api/webhooks/blackcat`,
     externalRef: order.orderId,
-    metadata: JSON.stringify({
-      order_id: order.orderId,
-      product_id: resolved.id,
-      product_slug: resolved.slug,
-      variant: resolved.variant,
-      split_code: blackcatSplitCode || undefined,
-      source: "CamVision",
-    }),
-    utm_source: tracking.utm_source || undefined,
-    utm_medium: tracking.utm_medium || undefined,
-    utm_campaign: tracking.utm_campaign || undefined,
-    utm_content: tracking.utm_content || undefined,
-    utm_term: tracking.utm_term || undefined,
   };
   const response = await fetch(`${blackcatApiUrl.replace(/\/+$/, "")}/sales/create-sale`, {
     method: "POST",
