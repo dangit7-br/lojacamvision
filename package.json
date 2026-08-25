@@ -1,0 +1,26 @@
+{
+  "name": "lojacamvision",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dangit7-br/lojacamvision.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/dangit7-br/lojacamvision/issues"
+  },
+  "homepage": "https://github.com/dangit7-br/lojacamvision#readme",
+  "dependencies": {
+    "pg": "^8.23.0",
+    "qrcode": "^1.5.4"
+  }
+}
