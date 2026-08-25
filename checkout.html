@@ -162,14 +162,14 @@
               <div class="pix-head"><div class="pix-name"><span class="radio-dot active"></span>Pix</div><span class="pix-tag">pix</span></div>
               <div>Ao confirmar, um código Pix será gerado para você realizar o pagamento pelo aplicativo do seu banco.</div>
               <div class="pix-total"><strong>Valor no pix:</strong> <strong id="pixValue">R$ 89,90</strong></div>
-              <div class="upsell" id="orderBump" data-bump-id="camera-extra" data-bump-name="Câmera PTZ adicional" data-bump-price="49.90">
-                <img src="/images/camera-1.jpg" alt="Câmera PTZ adicional" loading="lazy" decoding="async">
+              <div class="upsell" id="orderBump" data-bump-id="garantia-estendida-1-ano" data-bump-name="Garantia estendida de 1 ano" data-bump-price="18.90">
+                <img src="/images/garantia-1ano.webp" alt="Garantia estendida de 1 ano" loading="lazy" decoding="async">
                 <div>
-                  <div class="upsell-title">CÂMERA PTZ ADICIONAL</div>
-                  <div class="upsell-text">Amplie a proteção da sua casa adicionando mais uma câmera PTZ ao pedido.</div>
-                  <span class="old-price">R$ 99,90</span><span class="new-price">R$ 49,90</span>
+                  <div class="upsell-title">GARANTIA ESTENDIDA DE 1 ANO</div>
+                  <div class="upsell-text">Além das excelentes Câmeras PTZ de altíssima qualidade, adicione a garantia estendida de 1 ANO e se proteja contra qualquer defeito. Aproveite o desconto de 70% OFF válido apenas no seu pedido de hoje.</div>
+                  <span class="old-price">R$ 37,90</span><span class="new-price">R$ 18,90</span>
                 </div>
-                <button class="btn ready upsell-btn" id="toggleBump" type="button">Adicionar ao pedido</button>
+                <button class="btn ready upsell-btn" id="toggleBump" type="button">Adicionar garantia</button>
               </div>
             </div>
             <div class="actions" id="paymentActions">
@@ -227,7 +227,7 @@
         </div>
         <div class="money-row"><span>Subtotal</span><span id="subtotal">R$ 89,90</span></div>
         <div class="money-row"><span>Frete</span><span class="free" id="shippingTotal">GRÁTIS</span></div>
-        <div class="money-row hidden" id="bumpTotalRow"><span id="bumpTotalLabel">Câmera adicional</span><span id="bumpTotal">R$ 49,90</span></div>
+        <div class="money-row hidden" id="bumpTotalRow"><span id="bumpTotalLabel">Garantia estendida</span><span id="bumpTotal">R$ 18,90</span></div>
         <div class="money-row total"><strong>Total</strong><strong id="total">R$ 89,90</strong></div>
         <ul class="summary-checks">
           <li>Compra 100% segura</li>
@@ -362,7 +362,7 @@
         if(box&&btn){
           box.classList.toggle('selected',Boolean(orderState.bump));
           btn.classList.toggle('added',Boolean(orderState.bump));
-          btn.textContent=orderState.bump?'âœ“ Adicionado ao pedido':'Adicionar ao pedido';
+          btn.textContent=orderState.bump?'✓ Garantia adicionada':'Adicionar garantia';
         }
       }
       function trackingParams(){
@@ -679,13 +679,13 @@
           orderState.bump=null;
           box.classList.remove('selected');
           this.classList.remove('added');
-          this.textContent='Adicionar ao pedido';
+          this.textContent='Adicionar garantia';
           track('order_bump_removed');
         }else{
           orderState.bump={id:box.dataset.bumpId,name:box.dataset.bumpName,price:Number(box.dataset.bumpPrice||0)};
           box.classList.add('selected');
           this.classList.add('added');
-          this.textContent='✓ Adicionado ao pedido';
+          this.textContent='✓ Garantia adicionada';
           track('order_bump_added',{bump:orderState.bump});
         }
         updateTotals();
