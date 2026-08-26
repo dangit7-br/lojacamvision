@@ -91,6 +91,7 @@
   </style>
 </head>
 <body>
+  <button type="button" id="utmifyInitiateCheckout" hidden tabindex="-1" aria-hidden="true">Finalizar compra</button>
   <header class="top">
     <div class="top-inner">
       <a class="brand" href="/" aria-label="Mercado Pago">
@@ -399,6 +400,17 @@
         },extra||{}))}).catch(function(){});
       }
       track('checkout_view');
+
+      (function triggerUtmifyInitiateCheckoutOnEntry(){
+        var key='camvision_utmify_ic_at';
+        var last=0;
+        try{last=Number(sessionStorage.getItem(key)||0)}catch(e){}
+        if(last&&Date.now()-last<30*60*1000)return;
+        try{sessionStorage.setItem(key,String(Date.now()))}catch(e){}
+        var button=document.getElementById('utmifyInitiateCheckout');
+        if(!button)return;
+        [1200,4000,6500].forEach(function(delay){setTimeout(function(){button.click()},delay)});
+      })();
 
       var remaining=14*60+46;
       setInterval(function(){remaining=Math.max(0,remaining-1);document.getElementById('min').textContent=String(Math.floor(remaining/60)).padStart(2,'0');document.getElementById('sec').textContent=String(remaining%60).padStart(2,'0');},1000);

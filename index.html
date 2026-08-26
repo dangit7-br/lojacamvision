@@ -335,7 +335,7 @@
           <span class="cents" id="priceCents">,90</span>
         </div>
 
-        <a class="buy-btn" id="buyBtn" href="/checkout?size=Kit2" target="_top">
+        <a class="buy-btn" id="buyBtn" href="#offer" data-checkout-href="/checkout?size=Kit2" target="_top">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
           Comprar agora
         </a>
@@ -571,7 +571,7 @@
 
 <div class="sticky">
   <div class="p"><b id="stickyPrice">R$ 89,90</b></div>
-  <a id="buyBtnSticky" href="/checkout?size=Kit2" target="_top">Comprar agora</a>
+  <a id="buyBtnSticky" href="#offer" data-checkout-href="/checkout?size=Kit2" target="_top">Comprar agora</a>
 </div>
 
 <script>
@@ -630,8 +630,8 @@
     var extra=(window.__utmSuffix||'');
     var b1=document.getElementById('buyBtn');
     var b2=document.getElementById('buyBtnSticky');
-    if(b1)b1.href='/checkout?size='+encodeURIComponent(selectedSize)+extra;
-    if(b2)b2.href='/checkout?size='+encodeURIComponent(selectedSize)+extra;
+    if(b1)b1.dataset.checkoutHref='/checkout?size='+encodeURIComponent(selectedSize)+extra;
+    if(b2)b2.dataset.checkoutHref='/checkout?size='+encodeURIComponent(selectedSize)+extra;
   }
   document.querySelectorAll('#sizeVariants .variant').forEach(v=>v.addEventListener('click',()=>{
     document.querySelectorAll('#sizeVariants .variant').forEach(x=>x.classList.remove('active'));
@@ -661,8 +661,9 @@
 
   function forceBuyNav(ev){
     try{
+      ev.preventDefault();
       var a=ev.currentTarget;
-      var href=a.getAttribute('href')||'/checkout?size=Kit2';
+      var href=a.dataset.checkoutHref||'/checkout?size=Kit2';
       setTimeout(function(){ try{ (window.top||window).location.href=href; }catch(e){ window.location.href=href; } }, 60);
     }catch(e){}
   }
