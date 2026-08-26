@@ -315,17 +315,7 @@ function resolveProduct(order = {}) {
 function utmifyDateTime(value = new Date()) {
   const date = new Date(value);
   const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: appTimezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(safeDate).reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
-  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+  return safeDate.toISOString().slice(0, 19).replace("T", " ");
 }
 
 function publicBaseUrl(req) {
@@ -587,7 +577,28 @@ function buildUtmifyPayload(order, status, paidAt) {
   const resolved = resolveProduct(order);
   const total = Number(order.total || order.value || resolved.total || 0);
   const totalCents = cents(total);
+  const productCents = cents(order.subtotal || resolved.subtotal);
   const customer = order.customer || {};
+  const products = [
+    {
+      id: resolved.id,
+      name: resolved.gatewayName,
+      planId: null,
+      planName: resolved.variantLabel,
+      quantity: 1,
+      priceInCents: productCents,
+    },
+  ];
+  if (order.bump && Number(order.bump.price) > 0) {
+    products.push({
+      id: sanitizeText(order.bump.id, 80) || "order-bump",
+      name: sanitizeText(order.bump.name, 160) || "Oferta adicional",
+      planId: null,
+      planName: null,
+      quantity: 1,
+      priceInCents: cents(order.bump.price),
+    });
+  }
   return {
     orderId: String(order.orderId || order.id),
     platform: "CamVision",
@@ -604,16 +615,7 @@ function buildUtmifyPayload(order, status, paidAt) {
       country: "BR",
       ip: order.ip || null,
     },
-    products: [
-      {
-        id: resolved.id,
-        name: resolved.gatewayName,
-        planId: null,
-        planName: resolved.variantLabel,
-        quantity: 1,
-        priceInCents: totalCents,
-      },
-    ],
+    products,
     trackingParameters: cleanTracking(order.tracking || order),
     commission: {
       totalPriceInCents: totalCents,
