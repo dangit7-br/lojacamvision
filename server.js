@@ -70,6 +70,7 @@ let store = {
 
 const clients = new Set();
 const pixCreationInFlight = new Map();
+const utmifySyncQueues = new Map();
 let pgPool = null;
 let databaseReady = false;
 
@@ -620,6 +621,7 @@ function buildUtmifyPayload(order, status, paidAt) {
       userCommissionInCents: totalCents,
       currency: "BRL",
     },
+    isTest: false,
   };
 }
 
@@ -635,6 +637,21 @@ async function sendUtmifyOrder(order, status, paidAt) {
   return { ok: true, status: response.status, body: text.slice(0, 500) };
 }
 
+async function sendUtmifyOrderWithRetry(order, status, paidAt) {
+  const delays = [0, 750, 2000];
+  let lastError;
+  for (let attempt = 0; attempt < delays.length; attempt += 1) {
+    if (delays[attempt]) await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+    try {
+      return await sendUtmifyOrder(order, status, paidAt);
+    } catch (error) {
+      lastError = error;
+      console.error(`[utmify] ${status} attempt ${attempt + 1}/${delays.length}:`, error.message);
+    }
+  }
+  throw lastError || new Error("Falha ao enviar pedido para Utmify");
+}
+
 function rememberOrder(order) {
   if (!order || !order.orderId) return;
   store.orders = store.orders || {};
@@ -644,11 +661,11 @@ function rememberOrder(order) {
   if (order.gatewayTransactionId) store.orders[order.gatewayTransactionId] = order;
 }
 
-async function syncUtmifyOrder(order, status, paidAt) {
+async function performUtmifyOrderSync(order, status, paidAt) {
   const key = status === "paid" ? "paid" : "waitingPayment";
   const sentAt = new Date().toISOString();
   try {
-    const result = await sendUtmifyOrder(order, status, paidAt);
+    const result = await sendUtmifyOrderWithRetry(order, status, paidAt);
     order.utmify = {
       ...(order.utmify || {}),
       [key]: {
@@ -674,6 +691,17 @@ async function syncUtmifyOrder(order, status, paidAt) {
   scheduleSave();
   broadcast({ type: "update", event: { type: "integration", stage: `utmify_${status}`, orderId: order.orderId, createdAt: new Date().toISOString() }, summary: summarize().totals });
   return order.utmify && order.utmify[key];
+}
+
+function syncUtmifyOrder(order, status, paidAt) {
+  const orderKey = String(order.orderId || order.id || crypto.randomUUID());
+  const previous = utmifySyncQueues.get(orderKey) || Promise.resolve();
+  const task = previous.catch(() => undefined).then(() => performUtmifyOrderSync(order, status, paidAt));
+  utmifySyncQueues.set(orderKey, task);
+  task.finally(() => {
+    if (utmifySyncQueues.get(orderKey) === task) utmifySyncQueues.delete(orderKey);
+  });
+  return task;
 }
 
 function onyxAuthHeader() {
@@ -1186,10 +1214,11 @@ async function handleGatewayWebhook(req, res, gateway = "onyxpag") {
       customer: data.customer || {},
       createdAt: new Date().toISOString(),
     };
+    const wasPaid = order.status === "paid";
     order.paymentGateway = order.paymentGateway || gateway;
-    order.status = paid ? "paid" : status || order.status || "pending_payment";
+    order.status = wasPaid ? "paid" : paid ? "paid" : status || order.status || "pending_payment";
     order.paymentStatus = order.status;
-    order.paidAt = paid ? new Date().toISOString() : order.paidAt;
+    order.paidAt = paid && !wasPaid ? new Date().toISOString() : order.paidAt;
     store.orders = store.orders || {};
     if (transactionId) store.orders[transactionId] = order;
     if (externalId) store.orders[externalId] = order;
@@ -1198,7 +1227,7 @@ async function handleGatewayWebhook(req, res, gateway = "onyxpag") {
       sessionId: order.sessionId,
       orderId: order.orderId || orderKey,
       type: "checkout",
-      stage: paid ? "payment_paid" : "payment_update",
+      stage: paid && !wasPaid ? "payment_paid" : "payment_update",
       page: "webhook",
       product: order.product || resolveProduct(order).name,
       productSlug: order.productSlug || resolveProduct(order).slug,
@@ -1213,7 +1242,7 @@ async function handleGatewayWebhook(req, res, gateway = "onyxpag") {
     store.events.push(event);
     if (store.events.length > MAX_EVENTS) store.events = store.events.slice(-MAX_EVENTS);
     scheduleSave();
-    if (paid) syncUtmifyOrder(order, "paid", order.paidAt).catch((error) => console.error("[utmify] paid:", error.message));
+    if (paid && !wasPaid) syncUtmifyOrder(order, "paid", order.paidAt).catch((error) => console.error("[utmify] paid:", error.message));
     broadcast({ type: "update", event, summary: summarize().totals });
     json(res, 200, { ok: true, status: "received" });
   } catch (error) {

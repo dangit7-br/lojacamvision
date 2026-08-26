@@ -691,11 +691,10 @@
   setInterval(()=>{tms=Math.max(0,tms-1000);const tt=Math.floor(tms/1000);dH.textContent=String(Math.floor(tt/3600)).padStart(2,'0');dM.textContent=String(Math.floor(tt%3600/60)).padStart(2,'0');dS.textContent=String(tt%60).padStart(2,'0');},1000);
 </script>
 <script defer src="js/~flock.js" data-proxy-url="/~api/analytics"></script>
-<div style="display:none">Meta Pixel: 1697316274963918</div>
 <script>
 (function(){
   try{
-    var K='camvision_sid';
+    var K='inflamax_sid';
     var sid=localStorage.getItem(K);
     if(!sid){sid='s_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,10);localStorage.setItem(K,sid);}
     var qs=new URLSearchParams(location.search);
