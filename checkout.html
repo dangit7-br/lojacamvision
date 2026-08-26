@@ -797,7 +797,7 @@
           document.getElementById('finish').disabled=false;
           document.getElementById('finish').removeAttribute('aria-busy');
           document.getElementById('finish').textContent='Finalizar Compra';
-          alert((error&&error.message?error.message:'Não foi possível gerar o Pix.')+' Verifique o deploy do backend no EasyPanel e tente novamente.');
+          alert((error&&error.message?error.message:'Não foi possível gerar o Pix.')+' Tente novamente em alguns instantes. Se o problema continuar, fale com o atendimento.');
         }
       });
     })();

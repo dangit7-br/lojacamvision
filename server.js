@@ -420,6 +420,7 @@ function normalizePayload(body, req) {
     status: sanitizeText(body.status, 80),
     paymentStatus: sanitizeText(body.paymentStatus || body.payment_status, 80),
     paymentMethod: sanitizeText(body.paymentMethod || body.payment_method, 80),
+    error: sanitizeText(body.error, 400),
     userAgent: sanitizeText(body.userAgent || req.headers["user-agent"], 500),
     screen: sanitizeText(body.screen, 80),
     customer: Object.keys(customer).length ? customer : undefined,
@@ -438,6 +439,7 @@ function summarize() {
   const checkoutViews = store.events.filter((e) => e.stage === "checkout_view").length;
   const identified = store.events.filter((e) => e.stage === "identification_completed").length;
   const delivered = store.events.filter((e) => e.stage === "delivery_completed").length;
+  const pixFailures = store.events.filter((e) => e.stage === "pix_generation_failed").length;
   const generatedOrders = store.events.filter((e) => e.stage === "order_submitted");
   const paidOrders = store.events.filter((e) => {
     const stage = String(e.stage || "").toLowerCase();
@@ -550,6 +552,7 @@ function summarize() {
       checkoutViews,
       identified,
       delivered,
+      pixFailures,
       generatedOrders: orders.length,
       paidOrders: paidOrderRows.length,
       pendingOrders: Math.max(0, orders.length - paidOrderRows.length),
@@ -927,8 +930,10 @@ async function handleTrack(req, res) {
 async function handleCreatePix(req, res) {
   let lock;
   let orderId;
+  let requestBody = {};
   try {
     const body = await readBody(req);
+    requestBody = body;
     orderId = sanitizeText(body.orderId || body.id, 120) || crypto.randomUUID();
     const existingOrder = store.orders && store.orders[orderId];
     if (existingOrder && existingOrder.pix && existingOrder.pix.copyPaste) {
@@ -1049,7 +1054,39 @@ async function handleCreatePix(req, res) {
     broadcast({ type: "update", event: store.events[store.events.length - 1], summary: summarize().totals });
     json(res, 200, { ok: true, orderId: finalOrderId, order: savedOrder, pix: savedOrder.pix });
   } catch (error) {
-    json(res, 502, { ok: false, error: error.message || "Falha ao gerar Pix" });
+    const safeError = sanitizeText(error.message || "Falha ao gerar Pix", 400);
+    const resolved = resolveProduct(requestBody);
+    const failedEvent = {
+      id: crypto.randomUUID(),
+      sessionId: sanitizeText(requestBody.sessionId, 120),
+      orderId,
+      type: "checkout",
+      stage: "pix_generation_failed",
+      page: "checkout",
+      product: resolved.name,
+      productSlug: resolved.slug,
+      selectedKit: resolved.variant,
+      value: resolved.total,
+      paymentMethod: "pix",
+      paymentGateway: getPaymentGateway(),
+      customer: requestBody.customer,
+      tracking: cleanTracking(requestBody.tracking || requestBody),
+      href: sanitizeText(requestBody.href, 500),
+      ip: getClientIp(req),
+      error: safeError,
+      createdAt: new Date().toISOString(),
+    };
+    store.events.push(failedEvent);
+    if (store.events.length > MAX_EVENTS) store.events = store.events.slice(-MAX_EVENTS);
+    if (failedEvent.sessionId && store.sessions[failedEvent.sessionId]) {
+      store.sessions[failedEvent.sessionId].lastStage = failedEvent.stage;
+      store.sessions[failedEvent.sessionId].lastError = safeError;
+      store.sessions[failedEvent.sessionId].lastSeenAt = failedEvent.createdAt;
+    }
+    scheduleSave();
+    console.error(`[checkout] ${failedEvent.paymentGateway} Pix failed:`, safeError);
+    broadcast({ type: "update", event: failedEvent, summary: summarize().totals });
+    json(res, 502, { ok: false, error: safeError });
   } finally {
     if (lock) {
       lock.release();
