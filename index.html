@@ -659,6 +659,20 @@
   })();
   updatePrice();
 
+  (function configureUtmifyInitiateCheckout(){
+    function configure(){
+      try{
+        var lead=JSON.parse(localStorage.getItem('lead')||'{}');
+        lead.pixelId=lead.pixelId||window.pixelId;
+        lead.userAgent=lead.userAgent||navigator.userAgent;
+        lead.icURLMatch='/checkout';
+        localStorage.setItem('lead',JSON.stringify(lead));
+      }catch(e){}
+    }
+    configure();
+    [500,1500,3000,5000].forEach(function(delay){setTimeout(configure,delay)});
+  })();
+
   function maskCep(el){let v=el.value.replace(/\D/g,'').slice(0,8);if(v.length>5)v=v.slice(0,5)+'-'+v.slice(5);el.value=v}
   function simulateFreight(e){
     e.preventDefault();
