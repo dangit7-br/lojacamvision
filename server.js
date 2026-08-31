@@ -37,6 +37,7 @@ const PRODUCT_CATALOG = {
     variants: {
       Kit2: { label: "Compre 1, leve 2", price: 89.9 },
       Kit4: { label: "Compre 2, leve 4", price: 139.9 },
+      Kit8: { label: "Compre 4, leve 8", price: 229.9 },
     },
     defaultVariant: "Kit2",
   },

@@ -323,6 +323,7 @@
         <div class="variants" id="sizeVariants">
           <button class="variant active" data-size="Kit2" data-price="89.90">COMPRE 1<br>LEVE 2</button>
           <button class="variant" data-size="Kit4" data-price="139.90">COMPRE 2<br>LEVE 4</button>
+          <button class="variant" data-size="Kit8" data-price="229.90">COMPRE 4<br>LEVE 8</button>
         </div>
 
         <div>
@@ -605,7 +606,7 @@
   updateNav();
 
   // size variants
-  const OLD_PRICES={Kit2:224.90,Kit4:449.80};
+  const OLD_PRICES={Kit2:224.90,Kit4:449.80,Kit8:899.60};
   let selectedSize='Kit2';
   function fmt(v){return v.toFixed(2).replace('.',',')}
   function updatePrice(){
@@ -624,7 +625,7 @@
     document.getElementById('stickyPrice').textContent='R$ '+fmt(price);
     var titleEl=document.getElementById('productTitle');
     if(titleEl){
-      var suffix=selectedSize==='Kit4'?'[COMPRE 2 LEVE 4]':'[COMPRE 1 LEVE 2]';
+      var suffix=selectedSize==='Kit8'?'[COMPRE 4 LEVE 8]':selectedSize==='Kit4'?'[COMPRE 2 LEVE 4]':'[COMPRE 1 LEVE 2]';
       titleEl.innerHTML='Câmera Externa PTZ WiFi · Lente Dupla 2MP+2MP · Rastreamento Automático <b>'+suffix+'</b>';
     }
     var extra=(window.__utmSuffix||'');
